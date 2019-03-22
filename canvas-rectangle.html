@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Canvas Drag and Drop Test</title>
+</head>
+
+<body>
+    <section>
+        <div>
+            <canvas id="canvas" width=1000" height="1000">
+                This text is displayed if your browser does not support HTML5 Canvas.
+            </canvas>
+        </div>
+
+        <script type="text/javascript">
+            var canvas;
+            var context;
+            var x = 75;
+            var y = 50;
+            var WIDTH = 1000;
+            var HEIGHT = 1000;
+            var shouldDrag = false;
+
+            function clear() {
+                context.clearRect(0, 0, WIDTH, HEIGHT);
+            }
+
+            function rect(x, y, w, h) {
+                context.beginPath();
+                context.rect(x, y, w, h);
+                context.closePath();
+                context.stroke();
+            }
+
+            function init() {
+                canvas = document.getElementById("canvas");
+                context = canvas.getContext("2d");
+                return setInterval(draw, 10);
+            }
+
+            function draw() {
+                clear();
+                context.fillStyle = "#FAF7F8";
+                rect(0, 0, WIDTH, HEIGHT);
+
+                context.fillStyle = "#444444";
+                rect(x - 15, y - 15, 30, 30);
+            }
+
+            function myMove(e) {
+                if (shouldDrag) {
+                    x = e.pageX - canvas.offsetLeft;
+                    y = e.pageY - canvas.offsetTop;
+                }
+            }
+
+            function myDown(e) {
+                console.log(e);
+                if (e.pageX < x + 15 + canvas.offsetLeft && e.pageX > x - 15 + canvas.offsetLeft
+                    && e.pageY < y + 15 + canvas.offsetTop && e.pageY > y - 15 + canvas.offsetTop) {
+
+                    x = e.pageX - canvas.offsetLeft;
+                    y = e.pageY - canvas.offsetTop;
+                    shouldDrag = true;
+                    canvas.onmousemove = myMove;
+                }
+            }
+
+            function myUp() {
+                shouldDrag = false;
+                canvas.onmousemove = null;
+            }
+
+
+            init();
+            canvas.onmousedown = myDown;
+            canvas.onmouseup = myUp;
+        </script>
+    </section>
+</body>
+
+</html>
