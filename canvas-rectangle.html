@@ -9,73 +9,129 @@
 <body>
     <section>
         <div>
-            <canvas id="canvas" width=1000" height="1000">
+            <canvas id="canvas" width="300" height="300">
                 This text is displayed if your browser does not support HTML5 Canvas.
             </canvas>
         </div>
 
         <script type="text/javascript">
-            var canvas;
+            var delay = 70;
             var context;
-            var x = 75;
-            var y = 50;
-            var WIDTH = 1000;
-            var HEIGHT = 1000;
-            var shouldDrag = false;
+            var canvas;
+            var shapes = [];
+            var id = 1;
+            var WIDTH = 300;
+            var HEIGHT = 300;
+            var selectedShape;
+
+            function shape(initX, initY) {
+                this.x = initX;
+                this.y = initY;
+                this.isCrossed = false;
+                this.id = id;
+                id++;
+            }
+
+            function rect(shape, w, h) {
+                context.beginPath();
+                context.rect(shape.x, shape.y, w, h);
+                context.closePath();
+                context.stroke();
+                if (shape.isCrossed) {
+                    context.fill();
+                }
+            }
 
             function clear() {
                 context.clearRect(0, 0, WIDTH, HEIGHT);
             }
 
-            function rect(x, y, w, h) {
-                context.beginPath();
-                context.rect(x, y, w, h);
-                context.closePath();
-                context.stroke();
+            function draw() {
+                clear();
+                context.fillStyle = "#FF0000";
+                rect(new shape(0, 0), WIDTH, HEIGHT);
+
+                shapes.forEach(function (shape) {
+                    rect(shape, 30, 30);
+                });
+            }
+
+            function isClicked(e, shape) {
+                return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + 30
+                    && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + 30;
+            }
+
+            function move(e) {
+                if (selectedShape) {
+                    selectedShape.x = e.pageX - canvas.offsetLeft - 15;
+                    selectedShape.y = e.pageY - canvas.offsetTop - 15;
+                }
+            }
+
+            function down(e) {
+                shapes.forEach(function (shape) {
+                    if (isClicked(e, shape)) {
+                        selectedShape = shape;
+                        return;
+                    }
+                });
+
+                if (selectedShape) {
+                    selectedShape.x = e.pageX - canvas.offsetLeft - 15;
+                    selectedShape.y = e.pageY - canvas.offsetTop - 15;
+
+                    canvas.onmousemove = throttle(move, delay);
+                }
+            }
+
+            function shapeContainsPoint(shape, x, y) {
+                return shape.x <= x && x <= shape.x + 30
+                    && shape.y <= y && y <= shape.y + 30
+            }
+
+            function isCrossed(currentShape) {
+                let flag = false;
+                shapes.forEach(function (shape) {
+                    if (shape.id != currentShape.id) {
+                        if (shapeContainsPoint(shape, currentShape.x, currentShape.y)
+                            || shapeContainsPoint(shape, currentShape.x, currentShape.y + 30)
+                            || shapeContainsPoint(shape, currentShape.x + 30, currentShape.y)
+                            || shapeContainsPoint(shape, currentShape.x + 30, currentShape.y + 30)) {
+                            flag = true;
+                            return;
+                        }
+                    }
+                });
+
+                return flag;
+            }
+
+            function checkForIntersection() {
+                shapes.forEach(function (shape) {
+                    shape.isCrossed = isCrossed(shape);
+                });
+            }
+
+            function up() {
+                canvas.onmousemove = null;
+                selectedShape = null;
+                checkForIntersection();
             }
 
             function init() {
                 canvas = document.getElementById("canvas");
                 context = canvas.getContext("2d");
-                return setInterval(draw, 10);
-            }
-
-            function draw() {
-                clear();
-                context.fillStyle = "#FAF7F8";
-                rect(0, 0, WIDTH, HEIGHT);
-
-                context.fillStyle = "#444444";
-                rect(x - 15, y - 15, 30, 30);
-            }
-
-            function myMove(e) {
-                if (shouldDrag) {
-                    x = e.pageX - canvas.offsetLeft;
-                    y = e.pageY - canvas.offsetTop;
-                }
-            }
-
-            function myDown(e) {
-                if (e.pageX < x + 15 + canvas.offsetLeft && e.pageX > x - 15 + canvas.offsetLeft
-                    && e.pageY < y + 15 + canvas.offsetTop && e.pageY > y - 15 + canvas.offsetTop) {
-
-                    x = e.pageX - canvas.offsetLeft;
-                    y = e.pageY - canvas.offsetTop;
-                    shouldDrag = true;
-                    canvas.onmousemove = throttle(myMove, 30);
-                }
-            }
-
-            function myUp() {
-                shouldDrag = false;
-                canvas.onmousemove = null;
+                shapes.push(new shape(70, 70));
+                shapes.push(new shape(10, 10));
+                shapes.push(new shape(10, 10));
+                shapes.push(new shape(15, 15));
+                return setInterval(draw, delay);
             }
 
 
             init();
-            canvas.onmousedown = myDown;
-            canvas.onmouseup = myUp;
+            canvas.onmousedown = down;
+            canvas.onmouseup = up;
 
 
             function throttle(func, ms) {
@@ -97,7 +153,7 @@
                     isThrottled = true;
 
                     setTimeout(function () {
-                        isThrottled = false; 
+                        isThrottled = false;
                         if (savedArgs) {
                             wrapper.apply(savedThis, savedArgs);
                             savedArgs = savedThis = null;
