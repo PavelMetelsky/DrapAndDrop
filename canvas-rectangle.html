@@ -57,14 +57,13 @@
             }
 
             function myDown(e) {
-                console.log(e);
                 if (e.pageX < x + 15 + canvas.offsetLeft && e.pageX > x - 15 + canvas.offsetLeft
                     && e.pageY < y + 15 + canvas.offsetTop && e.pageY > y - 15 + canvas.offsetTop) {
 
                     x = e.pageX - canvas.offsetLeft;
                     y = e.pageY - canvas.offsetTop;
                     shouldDrag = true;
-                    canvas.onmousemove = myMove;
+                    canvas.onmousemove = throttle(myMove, 30);
                 }
             }
 
@@ -77,6 +76,38 @@
             init();
             canvas.onmousedown = myDown;
             canvas.onmouseup = myUp;
+
+
+            function throttle(func, ms) {
+
+                var isThrottled = false,
+                    savedArgs,
+                    savedThis;
+
+                function wrapper() {
+
+                    if (isThrottled) {
+                        savedArgs = arguments;
+                        savedThis = this;
+                        return;
+                    }
+
+                    func.apply(this, arguments);
+
+                    isThrottled = true;
+
+                    setTimeout(function () {
+                        isThrottled = false; 
+                        if (savedArgs) {
+                            wrapper.apply(savedThis, savedArgs);
+                            savedArgs = savedThis = null;
+                        }
+                    }, ms);
+                }
+
+                return wrapper;
+            }
+
         </script>
     </section>
 </body>
