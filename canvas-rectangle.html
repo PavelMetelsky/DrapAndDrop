@@ -15,19 +15,42 @@
         </div>
 
         <script type="text/javascript">
-            var delay = 70;
+            var delay = 50;
             var context;
             var canvas;
             var shapes = [];
             var id = 1;
             var WIDTH = 300;
             var HEIGHT = 300;
-            var selectedShape;
+            var clickedShape;
+            var redrawCanvas = false;
 
-            function shape(initX, initY) {
-                this.x = initX;
-                this.y = initY;
-                this.isCrossed = false;
+            function line(startPoint, endPoint) {
+                this.start = startPoint;
+                this.end = endPoint;
+            }
+
+            function point(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            function shape(type, points) {
+                switch (type) {
+                    case 1:
+                        this.x = points[0].x;
+                        this.y = points[0].y;
+                        break;
+                    case 2:
+                        this.points = points;
+                        break;
+                    default:
+                        this.x = points[0].x;
+                        this.y = points[0].y;
+                }
+
+                this.type = type;
+                this.crossed = false;
                 this.id = id;
                 id++;
             }
@@ -37,7 +60,20 @@
                 context.rect(shape.x, shape.y, w, h);
                 context.closePath();
                 context.stroke();
-                if (shape.isCrossed) {
+                if (shape.crossed) {
+                    context.fill();
+                }
+            }
+
+            function polygon(shape) {
+                context.beginPath();
+                context.moveTo(shape.points[0].x, shape.points[0].y);
+                shape.points.forEach(function (point) {
+                    context.lineTo(point.x, point.y)
+                });
+                context.lineTo(shape.points[0].x, shape.points[0].y);
+                context.stroke();
+                if (shape.crossed) {
                     context.fill();
                 }
             }
@@ -46,14 +82,27 @@
                 context.clearRect(0, 0, WIDTH, HEIGHT);
             }
 
-            function draw() {
-                clear();
-                context.fillStyle = "#FF0000";
-                rect(new shape(0, 0), WIDTH, HEIGHT);
+            function needsRedraw() {
+                redrawCanvas = true;
+            }
 
-                shapes.forEach(function (shape) {
-                    rect(shape, 30, 30);
-                });
+            function draw() {
+                if (redrawCanvas) {
+                    clear();
+                    context.fillStyle = "#FFFF00";
+                    rect(new shape(1, [new point(0, 0)]), WIDTH, HEIGHT);
+
+                    shapes.forEach(function (shape) {
+                        if (shape.type == 1) {
+                            rect(shape, 30, 30);
+                        }
+                        else {
+                            polygon(shape);
+                        }
+                    });
+
+                    redrawCanvas = false;
+                }
             }
 
             function isClicked(e, shape) {
@@ -62,44 +111,83 @@
             }
 
             function move(e) {
-                if (selectedShape) {
-                    selectedShape.x = e.pageX - canvas.offsetLeft - 15;
-                    selectedShape.y = e.pageY - canvas.offsetTop - 15;
+                if (clickedShape) {
+                    clickedShape.x = e.pageX - canvas.offsetLeft - 15;
+                    clickedShape.y = e.pageY - canvas.offsetTop - 15;
+                    needsRedraw();
                 }
             }
 
             function down(e) {
                 shapes.forEach(function (shape) {
                     if (isClicked(e, shape)) {
-                        selectedShape = shape;
+                        clickedShape = shape;
                         return;
                     }
                 });
 
-                if (selectedShape) {
-                    selectedShape.x = e.pageX - canvas.offsetLeft - 15;
-                    selectedShape.y = e.pageY - canvas.offsetTop - 15;
+                if (clickedShape) {
+                    clickedShape.x = e.pageX - canvas.offsetLeft - 15;
+                    clickedShape.y = e.pageY - canvas.offsetTop - 15;
+                    needsRedraw();
 
                     canvas.onmousemove = throttle(move, delay);
                 }
             }
 
-            function shapeContainsPoint(shape, x, y) {
-                return shape.x <= x && x <= shape.x + 30
-                    && shape.y <= y && y <= shape.y + 30
+            function makeLines(shape) {
+                let lines = [];
+                if (shape.type == 2) {
+                    for (i = 0; i < shape.points.length; i++) {
+                        lines.push(new line(shape.points[i], shape.points[(i + 1) % shape.points.length]))
+                    }
+                } else {
+                    lines.push(new line(new point(shape.x, shape.y), new point(shape.x + 30, shape.y)));
+                    lines.push(new line(new point(shape.x + 30, shape.y), new point(shape.x + 30, shape.y + 30)));
+                    lines.push(new line(new point(shape.x + 30, shape.y + 30), new point(shape.x, shape.y + 30)));
+                    lines.push(new line(new point(shape.x, shape.y + 30), new point(shape.x, shape.y)));
+
+                }
+
+                return lines;
+            }
+
+            function vectorMulti(ax, ay, bx, by) {
+                return ax * by - bx * ay;
+            }
+
+            function realLess(a, b) {
+                return b - a > 0.01;
+            }
+
+            function isLineCrossed(lineA, lineB) {
+                let v1 = vectorMulti(
+                    lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.start.x - lineB.start.x, lineA.start.y - lineB.start.y);
+                let v2 = vectorMulti(
+                    lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.end.x - lineB.start.x, lineA.end.y - lineB.start.y);
+                let v3 = vectorMulti(
+                    lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.start.x - lineA.start.x, lineB.start.y - lineA.start.y);
+                let v4 = vectorMulti(
+                    lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.end.x - lineA.start.x, lineB.end.y - lineA.start.y);
+
+                return realLess(v1 * v2, 0) && realLess(v3 * v4, 0)
             }
 
             function isCrossed(currentShape) {
                 let flag = false;
+                let linesCurrentShape = makeLines(currentShape);
+
                 shapes.forEach(function (shape) {
                     if (shape.id != currentShape.id) {
-                        if (shapeContainsPoint(shape, currentShape.x, currentShape.y)
-                            || shapeContainsPoint(shape, currentShape.x, currentShape.y + 30)
-                            || shapeContainsPoint(shape, currentShape.x + 30, currentShape.y)
-                            || shapeContainsPoint(shape, currentShape.x + 30, currentShape.y + 30)) {
-                            flag = true;
-                            return;
-                        }
+                        let linesShape = makeLines(shape);
+                        linesCurrentShape.forEach(function (line) {
+                            linesShape.forEach(function (lineTest) {
+                                if (isLineCrossed(line, lineTest)) {
+                                    flag = true;
+                                    return;
+                                }
+                            });
+                        });
                     }
                 });
 
@@ -108,23 +196,25 @@
 
             function checkForIntersection() {
                 shapes.forEach(function (shape) {
-                    shape.isCrossed = isCrossed(shape);
+                    shape.crossed = isCrossed(shape);
                 });
             }
 
             function up() {
                 canvas.onmousemove = null;
-                selectedShape = null;
+                clickedShape = null;
                 checkForIntersection();
+                needsRedraw();
             }
 
             function init() {
                 canvas = document.getElementById("canvas");
                 context = canvas.getContext("2d");
-                shapes.push(new shape(70, 70));
-                shapes.push(new shape(10, 10));
-                shapes.push(new shape(10, 10));
-                shapes.push(new shape(15, 15));
+                shapes.push(new shape(1, [new point(70, 70)]));
+                shapes.push(new shape(1, [new point(10, 10)]));
+                shapes.push(new shape(1, [new point(10, 10)]));
+                shapes.push(new shape(2, [new point(10, 10), new point(40, 30), new point(50, 20), new point(70, 80)]));
+                needsRedraw();
                 return setInterval(draw, delay);
             }
 
@@ -132,7 +222,6 @@
             init();
             canvas.onmousedown = down;
             canvas.onmouseup = up;
-
 
             function throttle(func, ms) {
 
