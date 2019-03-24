@@ -35,6 +35,22 @@
                 this.y = y;
             }
 
+            function getDrawPoints(x, y, points) {
+                let drawPoints = [];
+                points.forEach(function (point2) {
+                    drawPoints.push(new point(point2.x - x, point2.y - y));
+                })
+                return drawPoints;
+            }
+
+            function getPoints(x, y, points) {
+                let points2 = [];
+                points.forEach(function (point2) {
+                    points2.push(new point(point2.x + x, point2.y + y));
+                })
+                return points2;
+            }
+
             function shape(type, points) {
                 switch (type) {
                     case 1:
@@ -42,6 +58,9 @@
                         this.y = points[0].y;
                         break;
                     case 2:
+                        this.x = points[0].x;
+                        this.y = points[0].y;
+                        this.drawPoints = getDrawPoints(this.x, this.y, points);
                         this.points = points;
                         break;
                     default:
@@ -49,6 +68,8 @@
                         this.y = points[0].y;
                 }
 
+                this.deltaX = null;
+                this.deltaY = null;
                 this.type = type;
                 this.crossed = false;
                 this.id = id;
@@ -67,11 +88,11 @@
 
             function polygon(shape) {
                 context.beginPath();
-                context.moveTo(shape.points[0].x, shape.points[0].y);
-                shape.points.forEach(function (point) {
-                    context.lineTo(point.x, point.y)
+                context.moveTo(shape.drawPoints[0].x + shape.x, shape.drawPoints[0].y + shape.y);
+                shape.drawPoints.forEach(function (point) {
+                    context.lineTo(point.x + shape.x, point.y + shape.y)
                 });
-                context.lineTo(shape.points[0].x, shape.points[0].y);
+                context.lineTo(shape.drawPoints[0].x + shape.x, shape.drawPoints[0].y + shape.y);
                 context.stroke();
                 if (shape.crossed) {
                     context.fill();
@@ -105,15 +126,33 @@
                 }
             }
 
+            function inPoly(x, y, points) {
+                npol = points.length;
+                j = npol - 1;
+                var c = false;
+                for (i = 0; i < npol; i++) {
+                    if ((((points[i].y <= y) && (y < points[j].y)) || ((points[j].y <= y) && (y < points[i].y))) &&
+                        (x > (points[j].x - points[i].x) * (y - points[i].y) / (points[j].y - points[i].y) + points[i].x)) {
+                        c = !c
+                    }
+                    j = i;
+                }
+                return c;
+            }
+
             function isClicked(e, shape) {
-                return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + 30
-                    && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + 30;
+                if (shape.type == 1) {
+                    return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + 30
+                        && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + 30;
+                } else {
+                    return inPoly(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.points)
+                }
             }
 
             function move(e) {
                 if (clickedShape) {
-                    clickedShape.x = e.pageX - canvas.offsetLeft - 15;
-                    clickedShape.y = e.pageY - canvas.offsetTop - 15;
+                    clickedShape.x = e.pageX - canvas.offsetLeft - clickedShape.deltaX;
+                    clickedShape.y = e.pageY - canvas.offsetTop - clickedShape.deltaY;
                     needsRedraw();
                 }
             }
@@ -127,10 +166,10 @@
                 });
 
                 if (clickedShape) {
-                    clickedShape.x = e.pageX - canvas.offsetLeft - 15;
-                    clickedShape.y = e.pageY - canvas.offsetTop - 15;
-                    needsRedraw();
+                    clickedShape.deltaX = (e.pageX - canvas.offsetLeft) - clickedShape.x;
+                    clickedShape.deltaY = (e.pageY - canvas.offsetTop) - clickedShape.y;
 
+                    needsRedraw();
                     canvas.onmousemove = throttle(move, delay);
                 }
             }
@@ -202,6 +241,11 @@
 
             function up() {
                 canvas.onmousemove = null;
+
+                if (clickedShape && clickedShape.type == 2) {
+                    clickedShape.points = getPoints(clickedShape.x, clickedShape.y, clickedShape.drawPoints);
+                }
+
                 clickedShape = null;
                 checkForIntersection();
                 needsRedraw();
@@ -214,6 +258,7 @@
                 shapes.push(new shape(1, [new point(10, 10)]));
                 shapes.push(new shape(1, [new point(10, 10)]));
                 shapes.push(new shape(2, [new point(10, 10), new point(40, 30), new point(50, 20), new point(70, 80)]));
+                shapes.push(new shape(2, [new point(10, 10), new point(10, 40), new point(70, 70), new point(80, 20)]));
                 needsRedraw();
                 return setInterval(draw, delay);
             }
