@@ -11,17 +11,18 @@
         This text is displayed if your browser does not support HTML5 Canvas.
     </canvas>
     <script type="text/javascript">
-        var context;
-        var canvas;
-        var id = 0;
-        var WIDTH = document.body.clientWidth;
-        var HEIGHT = document.body.clientHeight;
-        var STATE = {
-            delay: 50,
+        const WIDTH = document.body.clientWidth;
+        const HEIGHT = document.body.clientHeight;
+        const canvas = document.getElementById("canvas");
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        const context = canvas.getContext("2d");
+        let id = 0;
+
+        let STATE = {
             shapes: [],
             clickedShape: null,
-            distanceBetweenShapes: 10,
-            redrawCanvas: false
+            distanceBetweenShapes: 10
         };
 
         class Point {
@@ -93,10 +94,9 @@
         }
 
         function getDrawPoints(x, y, points) {
-            let drawPoints = [];
-            points.forEach(function (point) {
-                drawPoints.push(new Point(point.x - x, point.y - y));
-            })
+            let drawPoints = points.map(function (point) {
+                return new Point(point.x - x, point.y - y);
+            });
             return drawPoints;
         }
 
@@ -109,20 +109,22 @@
             }
 
             get currentPoints() {
-                let points = [];
-                for (let i = 0; i < this.drawPoints.length; i++) {
-                    points.push(new Point(this.drawPoints[i].x + this.x, this.drawPoints[i].y + this.y));
-                }
+                let x = this.x;
+                let y = this.y;
+                let points = this.drawPoints.map(function (drawPoint) {
+                    return new Point(drawPoint.x + x, drawPoint.y + y);
+                });
                 return points;
             }
 
             draw() {
+                let points = this.currentPoints;
                 context.beginPath();
-                context.moveTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
-                for (let i = 0; i < this.drawPoints.length; i++) {
-                    context.lineTo(this.drawPoints[i].x + this.x, this.drawPoints[i].y + this.y)
-                }
-                context.lineTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
+                context.moveTo(points[0].x, points[0].y);
+                points.forEach(function (point) {
+                    context.lineTo(point.x, point.y)
+                })
+                context.lineTo(points[0].x, points[0].y);
                 context.closePath();
                 context.stroke();
                 super.draw();
@@ -133,52 +135,74 @@
             context.clearRect(0, 0, WIDTH, HEIGHT);
         }
 
-        function needsRedraw() {
-            STATE.redrawCanvas = true;
+        function requestDraw() {
+            requestAnimationFrame(draw);
         }
 
         function draw() {
-            if (STATE.redrawCanvas) {
-                clear();
-                context.fillStyle = "#FF0000";
-                (new Rectangle(new Point(0, 0), WIDTH, HEIGHT)).draw();
+            clear();
+            context.fillStyle = "#FF0000";
+            (new Rectangle(new Point(0, 0), WIDTH, HEIGHT)).draw();
 
-                STATE.shapes.forEach(function (shape) {
-                    shape.draw();
-                });
+            STATE.shapes.forEach(function (shape) {
+                shape.draw();
+            });
+        }
 
-                STATE.redrawCanvas = false;
-            }
+        function dotInsideLine(point, startLine, endLine) {
+            return startLine <= point && point < endLine;
+        }
+
+        function yBetweenShapePointsY(pointI, pointJ, y) {
+            return dotInsideLine(y, pointI.y, pointJ.y) || dotInsideLine(y, pointJ.y, pointI.y);
+        }
+
+        function beamCrossedShape(pointI, pointJ, x, y) {
+            return x > (pointJ.x - pointI.x) * (y - pointI.y) / (pointJ.y - pointI.y) + pointI.x;
         }
 
         function inPolygon(x, y, points) {
             pointsTotal = points.length;
             j = pointsTotal - 1;
-            var c = false;
+            let belongPolygon = false;
             for (i = 0; i < pointsTotal; i++) {
-                if ((((points[i].y <= y) && (y < points[j].y)) || ((points[j].y <= y) && (y < points[i].y))) &&
-                    (x > (points[j].x - points[i].x) * (y - points[i].y) / (points[j].y - points[i].y) + points[i].x)) {
-                    c = !c
+                if (yBetweenShapePointsY(points[j], points[i], y) && beamCrossedShape(points[j], points[i], x, y)) {
+                    belongPolygon = !belongPolygon
                 }
                 j = i;
             }
-            return c;
+            return belongPolygon;
         }
 
+        const MousePosition = {
+            x: 0,
+            y: 0
+        };
+
         function isClicked(e, shape) {
+            MousePosition.x = e.pageX;
+            MousePosition.y = e.pageY;
             if (shape.type == 1) {
-                return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + shape.width
-                    && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + shape.height;
+                return dotInsideLine(MousePosition.x - canvas.offsetLeft, shape.x, shape.x + shape.width)
+                    && dotInsideLine(MousePosition.y - canvas.offsetTop, shape.y, shape.y + shape.height);
             } else {
-                return inPolygon(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.currentPoints)
+                return inPolygon(MousePosition.x - canvas.offsetLeft, MousePosition.y - canvas.offsetTop, shape.currentPoints)
             }
         }
 
         function move(e) {
+            MousePosition.x = e.pageX;
+            MousePosition.y = e.pageY;
+        }
+
+        let requestRedrawId = null;
+
+        function redraw() {
             if (STATE.clickedShape) {
-                STATE.clickedShape.x = e.pageX - canvas.offsetLeft - STATE.clickedShape.deltaX;
-                STATE.clickedShape.y = e.pageY - canvas.offsetTop - STATE.clickedShape.deltaY;
-                needsRedraw();
+                STATE.clickedShape.x = MousePosition.x - canvas.offsetLeft - STATE.clickedShape.deltaX;
+                STATE.clickedShape.y = MousePosition.y - canvas.offsetTop - STATE.clickedShape.deltaY;
+                requestDraw();
+                requestRedrawId = requestAnimationFrame(redraw);
             }
         }
 
@@ -194,8 +218,11 @@
                 STATE.clickedShape.deltaX = (e.pageX - canvas.offsetLeft) - STATE.clickedShape.x;
                 STATE.clickedShape.deltaY = (e.pageY - canvas.offsetTop) - STATE.clickedShape.y;
 
-                needsRedraw();
-                canvas.onmousemove = throttle(move, STATE.delay);
+                requestDraw();
+                canvas.onmousemove = move;
+                MousePosition.x = e.clientX;
+                MousePosition.y = e.clientY;
+                redraw();
             }
         }
 
@@ -256,7 +283,10 @@
 
             STATE.clickedShape = null;
             checkForIntersection();
-            needsRedraw();
+            if (requestRedrawId) {
+                cancelAnimationFrame(requestRedrawId);
+            }
+            requestDraw();
         }
 
         function minPointsX(shape) {
@@ -298,10 +328,6 @@
         }
 
         function init() {
-            canvas = document.getElementById("canvas");
-            canvas.width = WIDTH;
-            canvas.height = HEIGHT;
-            context = canvas.getContext("2d");
             STATE.shapes.push(new Rectangle(new Point(70, 70), 30, 50));
             STATE.shapes.push(new Rectangle(new Point(10, 10), 40, 50));
             STATE.shapes.push(new Rectangle(new Point(10, 10), 20, 30));
@@ -310,45 +336,13 @@
             STATE.shapes.push(new Polygon([new Point(70, 30), new Point(80, 5), new Point(15, 10), new Point(20, 40)]));
             positionShapesFreely();
             console.log(STATE);
-            needsRedraw();
-            return setInterval(draw, STATE.delay);
+            requestDraw();
         }
 
 
         init();
         canvas.onmousedown = down;
         canvas.onmouseup = up;
-
-        function throttle(func, ms) {
-
-            var isThrottled = false,
-                savedArgs,
-                savedThis;
-
-            function wrapper() {
-
-                if (isThrottled) {
-                    savedArgs = arguments;
-                    savedThis = this;
-                    return;
-                }
-
-                func.apply(this, arguments);
-
-                isThrottled = true;
-
-                setTimeout(function () {
-                    isThrottled = false;
-                    if (savedArgs) {
-                        wrapper.apply(savedThis, savedArgs);
-                        savedArgs = savedThis = null;
-                    }
-                }, ms);
-            }
-
-            return wrapper;
-        }
-
     </script>
 </body>
 
