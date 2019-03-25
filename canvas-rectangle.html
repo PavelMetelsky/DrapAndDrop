@@ -247,30 +247,22 @@
             return realLess(v1 * v2, 0) && realLess(v3 * v4, 0)
         }
 
-        function isCrossed(currentShape) {
-            let flag = false;
-            let linesCurrentShape = currentShape.lines;
-
-            STATE.shapes.forEach(function (shape) {
-                if (shape.id != currentShape.id) {
+        function isCrossed(currentShapeId, linesCurrentShape) {
+            return STATE.shapes.some(function (shape) {
+                if (shape.id != currentShapeId) {
                     let linesShape = shape.lines;
-                    linesCurrentShape.forEach(function (lineCurrentShape) {
-                        linesShape.forEach(function (line) {
-                            if (isLineCrossed(lineCurrentShape, line)) {
-                                flag = true;
-                                return;
-                            }
+                    return linesCurrentShape.some(function (lineCurrentShape) {
+                        return linesShape.some(function (line) {
+                            return isLineCrossed(lineCurrentShape, line);
                         });
                     });
                 }
             });
-
-            return flag;
         }
 
         function checkForIntersection() {
             STATE.shapes.forEach(function (shape) {
-                shape.crossed = isCrossed(shape);
+                shape.crossed = isCrossed(shape.id, shape.lines);
             });
         }
 
@@ -299,8 +291,8 @@
         }
 
         function minPointsY(shape) {
-            let minY = 0;
             let points = shape.currentPoints;
+            let minY = points[0].y;
             points.forEach(function (point) {
                 minY = minY < point.y ? minY : point.y;
             })
@@ -309,8 +301,8 @@
         }
 
         function maxPointsY(shape) {
-            let maxY = 0;
             let points = shape.currentPoints;
+            let maxY = points[0].y;
             points.forEach(function (point) {
                 maxY = maxY > point.y ? maxY : point.y;
             })
@@ -323,7 +315,7 @@
             STATE.shapes[0].y = STATE.distanceBetweenShapes;
             for (i = 1; i < STATE.shapes.length; i++) {
                 STATE.shapes[i].x -= minPointsX(STATE.shapes[i]) - STATE.distanceBetweenShapes;
-                STATE.shapes[i].y += maxPointsY(STATE.shapes[i - 1]) - minPointsY(STATE.shapes[i]);
+                STATE.shapes[i].y += maxPointsY(STATE.shapes[i - 1]) - minPointsY(STATE.shapes[i]) + STATE.distanceBetweenShapes;
             }
         }
 
