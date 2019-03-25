@@ -1,310 +1,314 @@
 <!doctype html>
-<html>
+<html style="height: 100%;">
 
 <head>
     <meta charset="UTF-8" />
     <title>Canvas Drag and Drop Test</title>
 </head>
 
-<body>
-    <section>
-        <div>
-            <canvas id="canvas" width="300" height="300">
-                This text is displayed if your browser does not support HTML5 Canvas.
-            </canvas>
-        </div>
+<body style="height: 100%;">
+    <canvas id="canvas">
+        This text is displayed if your browser does not support HTML5 Canvas.
+    </canvas>
+    <script type="text/javascript">
+        var context;
+        var canvas;
+        var id = 0;
+        var WIDTH = document.body.clientWidth;
+        var HEIGHT = document.body.clientHeight;
+        var STATE = {
+            delay: 50,
+            shapes: [],
+            clickedShape: null,
+            redrawCanvas: false
+        };
 
-        <script type="text/javascript">
-            var delay = 50;
-            var context;
-            var canvas;
-            var shapes = [];
-            var id = 1;
-            var WIDTH = 300;
-            var HEIGHT = 300;
-            var clickedShape;
-            var redrawCanvas = false;
+        class Point {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+        }
 
-            class Point {
-                constructor(x, y) {
-                    this.x = x;
-                    this.y = y;
-                }
+        class Line {
+            constructor(startPoint, endPoint) {
+                this.start = startPoint;
+                this.end = endPoint;
+            }
+        }
+
+        class Shape {
+            constructor(point) {
+                this.id = id++;
+                this.x = point.x;
+                this.y = point.y;
+                this.deltaX = null;
+                this.deltaY = null;
+                this.crossed = false;
             }
 
-            class Line {
-                constructor(startPoint, endPoint) {
-                    this.start = startPoint;
-                    this.end = endPoint;
-                }
-            }
+            get currentPoints() { }
 
-            class Shape {
-                constructor() {
-                    this.deltaX = null;
-                    this.deltaY = null;
-                    this.crossed = false;
-                    this.id = id;
-                    id++;
-                }
-                draw() { }
-            }
-
-            class Rectangle extends Shape {
-                constructor(point, width, height) {
-                    super();
-                    this.type = 1;
-                    this.x = point.x;
-                    this.y = point.y;
-                    this.width = width;
-                    this.height = height;
-                }
-                draw() {
-                    context.beginPath();
-                    context.rect(this.x, this.y, this.width, this.height);
-                    context.closePath();
-                    context.stroke();
-                    if (this.crossed) {
-                        context.fill();
-                    }
-                }
-            }
-
-            function getDrawPoints(x, y, points) {
-                let drawPoints = [];
-                points.forEach(function (point) {
-                    drawPoints.push(new Point(point.x - x, point.y - y));
-                })
-                return drawPoints;
-            }
-
-            function getPoints(x, y, drawPoints) {
-                let points = [];
-                drawPoints.forEach(function (drawPoint) {
-                    points.push(new Point(drawPoint.x + x, drawPoint.y + y));
-                })
-                return points;
-            }
-
-            class Polygon extends Shape {
-                constructor(points) {
-                    super();
-                    this.type = 2;
-                    this.x = points[0].x;
-                    this.y = points[0].y;
-                    this.points = points;
-                    this.drawPoints = getDrawPoints(this.x, this.y, points);
-                }
-                draw() {
-                    context.beginPath();
-                    context.moveTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
-                    for (let i = 0; i < this.drawPoints.length; i++) {
-                        context.lineTo(this.drawPoints[i].x + this.x, this.drawPoints[i].y + this.y)
-                    }
-                    context.lineTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
-                    context.stroke();
-                    if (this.crossed) {
-                        context.fill();
-                    }
-                }
-            }
-
-            function clear() {
-                context.clearRect(0, 0, WIDTH, HEIGHT);
-            }
-
-            function needsRedraw() {
-                redrawCanvas = true;
-            }
-
-            function draw() {
-                if (redrawCanvas) {
-                    clear();
-                    context.fillStyle = "#FF0000";
-                    (new Rectangle(new Point(0, 0), WIDTH, HEIGHT)).draw();
-
-                    shapes.forEach(function (shape) {
-                        shape.draw();
-                    });
-
-                    redrawCanvas = false;
-                }
-            }
-
-            function inPolygon(x, y, points) {
-                pointsTotal = points.length;
-                j = pointsTotal - 1;
-                var c = false;
-                for (i = 0; i < pointsTotal; i++) {
-                    if ((((points[i].y <= y) && (y < points[j].y)) || ((points[j].y <= y) && (y < points[i].y))) &&
-                        (x > (points[j].x - points[i].x) * (y - points[i].y) / (points[j].y - points[i].y) + points[i].x)) {
-                        c = !c
-                    }
-                    j = i;
-                }
-                return c;
-            }
-
-            function isClicked(e, shape) {
-                if (shape.type == 1) {
-                    return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + shape.width
-                        && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + shape.height;
-                } else {
-                    return inPolygon(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.points)
-                }
-            }
-
-            function move(e) {
-                if (clickedShape) {
-                    clickedShape.x = e.pageX - canvas.offsetLeft - clickedShape.deltaX;
-                    clickedShape.y = e.pageY - canvas.offsetTop - clickedShape.deltaY;
-                    needsRedraw();
-                }
-            }
-
-            function down(e) {
-                shapes.forEach(function (shape) {
-                    if (isClicked(e, shape)) {
-                        clickedShape = shape;
-                        return;
-                    }
-                });
-
-                if (clickedShape) {
-                    clickedShape.deltaX = (e.pageX - canvas.offsetLeft) - clickedShape.x;
-                    clickedShape.deltaY = (e.pageY - canvas.offsetTop) - clickedShape.y;
-
-                    needsRedraw();
-                    canvas.onmousemove = throttle(move, delay);
-                }
-            }
-
-            function makeLines(shape) {
+            get lines() {
                 let lines = [];
-                if (shape.type == 2) {
-                    for (i = 0; i < shape.points.length; i++) {
-                        lines.push(new Line(shape.points[i], shape.points[(i + 1) % shape.points.length]))
-                    }
-                } else {
-                    lines.push(new Line(new Point(shape.x, shape.y), new Point(shape.x + shape.width, shape.y)));
-                    lines.push(new Line(new Point(shape.x + shape.width, shape.y), new Point(shape.x + shape.width, shape.y + shape.height)));
-                    lines.push(new Line(new Point(shape.x + shape.width, shape.y + shape.height), new Point(shape.x, shape.y + shape.height)));
-                    lines.push(new Line(new Point(shape.x, shape.y + shape.height), new Point(shape.x, shape.y)));
-
+                let points = this.currentPoints;
+                for (let i = 0; i < points.length; i++) {
+                    lines.push(new Line(points[i], points[(i + 1) % points.length]))
                 }
-
                 return lines;
             }
 
-            function vectorMulti(ax, ay, bx, by) {
-                return ax * by - bx * ay;
+            draw() {
+                if (this.crossed) {
+                    context.fill();
+                }
+            }
+        }
+
+        class Rectangle extends Shape {
+            constructor(point, width, height) {
+                super(point);
+                this.type = 1;
+                this.width = width;
+                this.height = height;
             }
 
-            function realLess(a, b) {
-                return b - a > 0.01;
+            get currentPoints() {
+                return [
+                    new Point(this.x, this.y),
+                    new Point(this.x + this.width, this.y),
+                    new Point(this.x + this.width, this.y + this.height),
+                    new Point(this.x, this.y + this.height)
+                ];
             }
 
-            function isLineCrossed(lineA, lineB) {
-                let v1 = vectorMulti(
-                    lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.start.x - lineB.start.x, lineA.start.y - lineB.start.y);
-                let v2 = vectorMulti(
-                    lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.end.x - lineB.start.x, lineA.end.y - lineB.start.y);
-                let v3 = vectorMulti(
-                    lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.start.x - lineA.start.x, lineB.start.y - lineA.start.y);
-                let v4 = vectorMulti(
-                    lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.end.x - lineA.start.x, lineB.end.y - lineA.start.y);
+            draw() {
+                context.beginPath();
+                context.rect(this.x, this.y, this.width, this.height);
+                context.closePath();
+                context.stroke();
+                super.draw();
+            }
+        }
 
-                return realLess(v1 * v2, 0) && realLess(v3 * v4, 0)
+        function getDrawPoints(x, y, points) {
+            let drawPoints = [];
+            points.forEach(function (point) {
+                drawPoints.push(new Point(point.x - x, point.y - y));
+            })
+            return drawPoints;
+        }
+
+        class Polygon extends Shape {
+            constructor(points) {
+                super(points[0]);
+                this.type = 2;
+                this.points = points;
+                this.drawPoints = getDrawPoints(this.x, this.y, points);
             }
 
-            function isCrossed(currentShape) {
-                let flag = false;
-                let linesCurrentShape = makeLines(currentShape);
+            get currentPoints() {
+                let points = [];
+                for (i = 0; i < this.drawPoints.length; i++) {
+                    points.push(new Point(this.drawPoints[i].x + this.x, this.drawPoints[i].y + this.y));
+                }
+                return points;
+            }
 
-                shapes.forEach(function (shape) {
-                    if (shape.id != currentShape.id) {
-                        let linesShape = makeLines(shape);
-                        linesCurrentShape.forEach(function (line) {
-                            linesShape.forEach(function (lineForCheck) {
-                                if (isLineCrossed(line, lineForCheck)) {
-                                    flag = true;
-                                    return;
-                                }
-                            });
+            draw() {
+                context.beginPath();
+                context.moveTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
+                for (let i = 0; i < this.drawPoints.length; i++) {
+                    context.lineTo(this.drawPoints[i].x + this.x, this.drawPoints[i].y + this.y)
+                }
+                context.lineTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
+                context.closePath();
+                context.stroke();
+                super.draw();
+            }
+        }
+
+        function clear() {
+            context.clearRect(0, 0, WIDTH, HEIGHT);
+        }
+
+        function needsRedraw() {
+            STATE.redrawCanvas = true;
+        }
+
+        function draw() {
+            if (STATE.redrawCanvas) {
+                clear();
+                context.fillStyle = "#FF0000";
+                (new Rectangle(new Point(0, 0), WIDTH, HEIGHT)).draw();
+
+                STATE.shapes.forEach(function (shape) {
+                    shape.draw();
+                });
+
+                STATE.redrawCanvas = false;
+            }
+        }
+
+        function inPolygon(x, y, points) {
+            pointsTotal = points.length;
+            j = pointsTotal - 1;
+            var c = false;
+            for (i = 0; i < pointsTotal; i++) {
+                if ((((points[i].y <= y) && (y < points[j].y)) || ((points[j].y <= y) && (y < points[i].y))) &&
+                    (x > (points[j].x - points[i].x) * (y - points[i].y) / (points[j].y - points[i].y) + points[i].x)) {
+                    c = !c
+                }
+                j = i;
+            }
+            return c;
+        }
+
+        function isClicked(e, shape) {
+            if (shape.type == 1) {
+                return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + shape.width
+                    && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + shape.height;
+            } else {
+                return inPolygon(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.points)
+            }
+        }
+
+        function move(e) {
+            if (STATE.clickedShape) {
+                STATE.clickedShape.x = e.pageX - canvas.offsetLeft - STATE.clickedShape.deltaX;
+                STATE.clickedShape.y = e.pageY - canvas.offsetTop - STATE.clickedShape.deltaY;
+                needsRedraw();
+            }
+        }
+
+        function down(e) {
+            STATE.shapes.forEach(function (shape) {
+                if (isClicked(e, shape)) {
+                    STATE.clickedShape = shape;
+                    return;
+                }
+            });
+
+            if (STATE.clickedShape) {
+                STATE.clickedShape.deltaX = (e.pageX - canvas.offsetLeft) - STATE.clickedShape.x;
+                STATE.clickedShape.deltaY = (e.pageY - canvas.offsetTop) - STATE.clickedShape.y;
+
+                needsRedraw();
+                canvas.onmousemove = throttle(move, STATE.delay);
+            }
+        }
+
+        function vectorMulti(ax, ay, bx, by) {
+            return ax * by - bx * ay;
+        }
+
+        function realLess(a, b) {
+            return b - a > 0.01;
+        }
+
+        function isLineCrossed(lineA, lineB) {
+            let v1 = vectorMulti(
+                lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.start.x - lineB.start.x, lineA.start.y - lineB.start.y);
+            let v2 = vectorMulti(
+                lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.end.x - lineB.start.x, lineA.end.y - lineB.start.y);
+            let v3 = vectorMulti(
+                lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.start.x - lineA.start.x, lineB.start.y - lineA.start.y);
+            let v4 = vectorMulti(
+                lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.end.x - lineA.start.x, lineB.end.y - lineA.start.y);
+
+            return realLess(v1 * v2, 0) && realLess(v3 * v4, 0)
+        }
+
+        function isCrossed(currentShape) {
+            let flag = false;
+            let linesCurrentShape = currentShape.lines;
+
+            STATE.shapes.forEach(function (shape) {
+                if (shape.id != currentShape.id) {
+                    let linesShape = shape.lines;
+                    linesCurrentShape.forEach(function (lineCurrentShape) {
+                        linesShape.forEach(function (line) {
+                            if (isLineCrossed(lineCurrentShape, line)) {
+                                flag = true;
+                                return;
+                            }
                         });
-                    }
-                });
+                    });
+                }
+            });
 
-                return flag;
+            return flag;
+        }
+
+        function checkForIntersection() {
+            STATE.shapes.forEach(function (shape) {
+                shape.crossed = isCrossed(shape);
+            });
+        }
+
+        function up() {
+            canvas.onmousemove = null;
+
+            if (STATE.clickedShape) {
+                STATE.clickedShape.points = STATE.clickedShape.currentPoints;
             }
 
-            function checkForIntersection() {
-                shapes.forEach(function (shape) {
-                    shape.crossed = isCrossed(shape);
-                });
-            }
+            STATE.clickedShape = null;
+            checkForIntersection();
+            needsRedraw();
+        }
 
-            function up() {
-                canvas.onmousemove = null;
+        function init() {
+            canvas = document.getElementById("canvas");
+            canvas.width = WIDTH;
+            canvas.height = HEIGHT;
+            context = canvas.getContext("2d");
+            STATE.shapes.push(new Rectangle(new Point(70, 70), 30, 50));
+            STATE.shapes.push(new Rectangle(new Point(10, 10), 40, 50));
+            STATE.shapes.push(new Rectangle(new Point(10, 10), 20, 30));
+            STATE.shapes.push(new Polygon([new Point(10, 10), new Point(40, 30), new Point(50, 20), new Point(70, 80)]));
+            STATE.shapes.push(new Polygon([new Point(10, 10), new Point(10, 40), new Point(70, 70), new Point(80, 20)]));
+            console.log(STATE);
+            needsRedraw();
+            return setInterval(draw, STATE.delay);
+        }
 
-                if (clickedShape && clickedShape.type == 2) {
-                    clickedShape.points = getPoints(clickedShape.x, clickedShape.y, clickedShape.drawPoints);
+
+        init();
+        canvas.onmousedown = down;
+        canvas.onmouseup = up;
+
+        function throttle(func, ms) {
+
+            var isThrottled = false,
+                savedArgs,
+                savedThis;
+
+            function wrapper() {
+
+                if (isThrottled) {
+                    savedArgs = arguments;
+                    savedThis = this;
+                    return;
                 }
 
-                clickedShape = null;
-                checkForIntersection();
-                needsRedraw();
-            }
+                func.apply(this, arguments);
 
-            function init() {
-                canvas = document.getElementById("canvas");
-                context = canvas.getContext("2d");
-                shapes.push(new Rectangle(new Point(70, 70), 30, 50));
-                shapes.push(new Rectangle(new Point(10, 10), 40, 50));
-                shapes.push(new Rectangle(new Point(10, 10), 20, 30));
-                shapes.push(new Polygon([new Point(10, 10), new Point(40, 30), new Point(50, 20), new Point(70, 80)]));
-                shapes.push(new Polygon([new Point(10, 10), new Point(10, 40), new Point(70, 70), new Point(80, 20)]));
-                needsRedraw();
-                return setInterval(draw, delay);
-            }
+                isThrottled = true;
 
-
-            init();
-            canvas.onmousedown = down;
-            canvas.onmouseup = up;
-
-            function throttle(func, ms) {
-
-                var isThrottled = false,
-                    savedArgs,
-                    savedThis;
-
-                function wrapper() {
-
-                    if (isThrottled) {
-                        savedArgs = arguments;
-                        savedThis = this;
-                        return;
+                setTimeout(function () {
+                    isThrottled = false;
+                    if (savedArgs) {
+                        wrapper.apply(savedThis, savedArgs);
+                        savedArgs = savedThis = null;
                     }
-
-                    func.apply(this, arguments);
-
-                    isThrottled = true;
-
-                    setTimeout(function () {
-                        isThrottled = false;
-                        if (savedArgs) {
-                            wrapper.apply(savedThis, savedArgs);
-                            savedArgs = savedThis = null;
-                        }
-                    }, ms);
-                }
-
-                return wrapper;
+                }, ms);
             }
 
-        </script>
-    </section>
+            return wrapper;
+        }
+
+    </script>
 </body>
 
 </html>
