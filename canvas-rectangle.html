@@ -20,6 +20,7 @@
             delay: 50,
             shapes: [],
             clickedShape: null,
+            distanceBetweenShapes: 10,
             redrawCanvas: false
         };
 
@@ -109,7 +110,7 @@
 
             get currentPoints() {
                 let points = [];
-                for (i = 0; i < this.drawPoints.length; i++) {
+                for (let i = 0; i < this.drawPoints.length; i++) {
                     points.push(new Point(this.drawPoints[i].x + this.x, this.drawPoints[i].y + this.y));
                 }
                 return points;
@@ -169,7 +170,7 @@
                 return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + shape.width
                     && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + shape.height;
             } else {
-                return inPolygon(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.points)
+                return inPolygon(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.currentPoints)
             }
         }
 
@@ -258,6 +259,44 @@
             needsRedraw();
         }
 
+        function minPointsX(shape) {
+            let points = shape.currentPoints;
+            let minX = points[0].x;
+            points.forEach(function (point) {
+                minX = minX < point.x ? minX : point.x;
+            })
+            return minX;
+        }
+
+        function minPointsY(shape) {
+            let minY = 0;
+            let points = shape.currentPoints;
+            points.forEach(function (point) {
+                minY = minY < point.y ? minY : point.y;
+            })
+
+            return minY;
+        }
+
+        function maxPointsY(shape) {
+            let maxY = 0;
+            let points = shape.currentPoints;
+            points.forEach(function (point) {
+                maxY = maxY > point.y ? maxY : point.y;
+            })
+
+            return maxY;
+        }
+
+        function positionShapesFreely() {
+            STATE.shapes[0].x = STATE.distanceBetweenShapes;
+            STATE.shapes[0].y = STATE.distanceBetweenShapes;
+            for (i = 1; i < STATE.shapes.length; i++) {
+                STATE.shapes[i].x -= minPointsX(STATE.shapes[i]) - STATE.distanceBetweenShapes;
+                STATE.shapes[i].y += maxPointsY(STATE.shapes[i - 1]) - minPointsY(STATE.shapes[i]);
+            }
+        }
+
         function init() {
             canvas = document.getElementById("canvas");
             canvas.width = WIDTH;
@@ -268,6 +307,8 @@
             STATE.shapes.push(new Rectangle(new Point(10, 10), 20, 30));
             STATE.shapes.push(new Polygon([new Point(10, 10), new Point(40, 30), new Point(50, 20), new Point(70, 80)]));
             STATE.shapes.push(new Polygon([new Point(10, 10), new Point(10, 40), new Point(70, 70), new Point(80, 20)]));
+            STATE.shapes.push(new Polygon([new Point(70, 30), new Point(80, 5), new Point(15, 10), new Point(20, 40)]));
+            positionShapesFreely();
             console.log(STATE);
             needsRedraw();
             return setInterval(draw, STATE.delay);
