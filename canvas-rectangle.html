@@ -25,77 +25,87 @@
             var clickedShape;
             var redrawCanvas = false;
 
-            function line(startPoint, endPoint) {
-                this.start = startPoint;
-                this.end = endPoint;
+            class Point {
+                constructor(x, y) {
+                    this.x = x;
+                    this.y = y;
+                }
             }
 
-            function point(x, y) {
-                this.x = x;
-                this.y = y;
+            class Line {
+                constructor(startPoint, endPoint) {
+                    this.start = startPoint;
+                    this.end = endPoint;
+                }
+            }
+
+            class Shape {
+                constructor() {
+                    this.deltaX = null;
+                    this.deltaY = null;
+                    this.crossed = false;
+                    this.id = id;
+                    id++;
+                }
+                draw() { }
+            }
+
+            class Rectangle extends Shape {
+                constructor(point, width, height) {
+                    super();
+                    this.type = 1;
+                    this.x = point.x;
+                    this.y = point.y;
+                    this.width = width;
+                    this.height = height;
+                }
+                draw() {
+                    context.beginPath();
+                    context.rect(this.x, this.y, this.width, this.height);
+                    context.closePath();
+                    context.stroke();
+                    if (this.crossed) {
+                        context.fill();
+                    }
+                }
             }
 
             function getDrawPoints(x, y, points) {
                 let drawPoints = [];
-                points.forEach(function (point2) {
-                    drawPoints.push(new point(point2.x - x, point2.y - y));
+                points.forEach(function (point) {
+                    drawPoints.push(new Point(point.x - x, point.y - y));
                 })
                 return drawPoints;
             }
 
-            function getPoints(x, y, points) {
-                let points2 = [];
-                points.forEach(function (point2) {
-                    points2.push(new point(point2.x + x, point2.y + y));
+            function getPoints(x, y, drawPoints) {
+                let points = [];
+                drawPoints.forEach(function (drawPoint) {
+                    points.push(new Point(drawPoint.x + x, drawPoint.y + y));
                 })
-                return points2;
+                return points;
             }
 
-            function shape(type, points) {
-                switch (type) {
-                    case 1:
-                        this.x = points[0].x;
-                        this.y = points[0].y;
-                        break;
-                    case 2:
-                        this.x = points[0].x;
-                        this.y = points[0].y;
-                        this.drawPoints = getDrawPoints(this.x, this.y, points);
-                        this.points = points;
-                        break;
-                    default:
-                        this.x = points[0].x;
-                        this.y = points[0].y;
+            class Polygon extends Shape {
+                constructor(points) {
+                    super();
+                    this.type = 2;
+                    this.x = points[0].x;
+                    this.y = points[0].y;
+                    this.points = points;
+                    this.drawPoints = getDrawPoints(this.x, this.y, points);
                 }
-
-                this.deltaX = null;
-                this.deltaY = null;
-                this.type = type;
-                this.crossed = false;
-                this.id = id;
-                id++;
-            }
-
-            function rect(shape, w, h) {
-                context.beginPath();
-                context.rect(shape.x, shape.y, w, h);
-                context.closePath();
-                context.stroke();
-                if (shape.crossed) {
-                    context.fill();
-                }
-            }
-
-            function polygon(shape) {
-                context.beginPath();
-                context.moveTo(shape.drawPoints[0].x + shape.x, shape.drawPoints[0].y + shape.y);
-                shape.drawPoints.forEach(function (point) {
-                    context.lineTo(point.x + shape.x, point.y + shape.y)
-                });
-                context.lineTo(shape.drawPoints[0].x + shape.x, shape.drawPoints[0].y + shape.y);
-                context.stroke();
-                if (shape.crossed) {
-                    context.fill();
+                draw() {
+                    context.beginPath();
+                    context.moveTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
+                    for (let i = 0; i < this.drawPoints.length; i++) {
+                        context.lineTo(this.drawPoints[i].x + this.x, this.drawPoints[i].y + this.y)
+                    }
+                    context.lineTo(this.drawPoints[0].x + this.x, this.drawPoints[0].y + this.y);
+                    context.stroke();
+                    if (this.crossed) {
+                        context.fill();
+                    }
                 }
             }
 
@@ -110,27 +120,22 @@
             function draw() {
                 if (redrawCanvas) {
                     clear();
-                    context.fillStyle = "#FFFF00";
-                    rect(new shape(1, [new point(0, 0)]), WIDTH, HEIGHT);
+                    context.fillStyle = "#FF0000";
+                    (new Rectangle(new Point(0, 0), WIDTH, HEIGHT)).draw();
 
                     shapes.forEach(function (shape) {
-                        if (shape.type == 1) {
-                            rect(shape, 30, 30);
-                        }
-                        else {
-                            polygon(shape);
-                        }
+                        shape.draw();
                     });
 
                     redrawCanvas = false;
                 }
             }
 
-            function inPoly(x, y, points) {
-                npol = points.length;
-                j = npol - 1;
+            function inPolygon(x, y, points) {
+                pointsTotal = points.length;
+                j = pointsTotal - 1;
                 var c = false;
-                for (i = 0; i < npol; i++) {
+                for (i = 0; i < pointsTotal; i++) {
                     if ((((points[i].y <= y) && (y < points[j].y)) || ((points[j].y <= y) && (y < points[i].y))) &&
                         (x > (points[j].x - points[i].x) * (y - points[i].y) / (points[j].y - points[i].y) + points[i].x)) {
                         c = !c
@@ -142,10 +147,10 @@
 
             function isClicked(e, shape) {
                 if (shape.type == 1) {
-                    return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + 30
-                        && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + 30;
+                    return shape.x < e.pageX - canvas.offsetLeft && e.pageX - canvas.offsetLeft < shape.x + shape.width
+                        && shape.y < e.pageY - canvas.offsetTop && e.pageY - canvas.offsetTop < shape.y + shape.height;
                 } else {
-                    return inPoly(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.points)
+                    return inPolygon(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop, shape.points)
                 }
             }
 
@@ -178,13 +183,13 @@
                 let lines = [];
                 if (shape.type == 2) {
                     for (i = 0; i < shape.points.length; i++) {
-                        lines.push(new line(shape.points[i], shape.points[(i + 1) % shape.points.length]))
+                        lines.push(new Line(shape.points[i], shape.points[(i + 1) % shape.points.length]))
                     }
                 } else {
-                    lines.push(new line(new point(shape.x, shape.y), new point(shape.x + 30, shape.y)));
-                    lines.push(new line(new point(shape.x + 30, shape.y), new point(shape.x + 30, shape.y + 30)));
-                    lines.push(new line(new point(shape.x + 30, shape.y + 30), new point(shape.x, shape.y + 30)));
-                    lines.push(new line(new point(shape.x, shape.y + 30), new point(shape.x, shape.y)));
+                    lines.push(new Line(new Point(shape.x, shape.y), new Point(shape.x + shape.width, shape.y)));
+                    lines.push(new Line(new Point(shape.x + shape.width, shape.y), new Point(shape.x + shape.width, shape.y + shape.height)));
+                    lines.push(new Line(new Point(shape.x + shape.width, shape.y + shape.height), new Point(shape.x, shape.y + shape.height)));
+                    lines.push(new Line(new Point(shape.x, shape.y + shape.height), new Point(shape.x, shape.y)));
 
                 }
 
@@ -220,8 +225,8 @@
                     if (shape.id != currentShape.id) {
                         let linesShape = makeLines(shape);
                         linesCurrentShape.forEach(function (line) {
-                            linesShape.forEach(function (lineTest) {
-                                if (isLineCrossed(line, lineTest)) {
+                            linesShape.forEach(function (lineForCheck) {
+                                if (isLineCrossed(line, lineForCheck)) {
                                     flag = true;
                                     return;
                                 }
@@ -254,11 +259,11 @@
             function init() {
                 canvas = document.getElementById("canvas");
                 context = canvas.getContext("2d");
-                shapes.push(new shape(1, [new point(70, 70)]));
-                shapes.push(new shape(1, [new point(10, 10)]));
-                shapes.push(new shape(1, [new point(10, 10)]));
-                shapes.push(new shape(2, [new point(10, 10), new point(40, 30), new point(50, 20), new point(70, 80)]));
-                shapes.push(new shape(2, [new point(10, 10), new point(10, 40), new point(70, 70), new point(80, 20)]));
+                shapes.push(new Rectangle(new Point(70, 70), 30, 50));
+                shapes.push(new Rectangle(new Point(10, 10), 40, 50));
+                shapes.push(new Rectangle(new Point(10, 10), 20, 30));
+                shapes.push(new Polygon([new Point(10, 10), new Point(40, 30), new Point(50, 20), new Point(70, 80)]));
+                shapes.push(new Polygon([new Point(10, 10), new Point(10, 40), new Point(70, 70), new Point(80, 20)]));
                 needsRedraw();
                 return setInterval(draw, delay);
             }
