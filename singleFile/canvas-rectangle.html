@@ -1,0 +1,341 @@
+<!doctype html>
+<html style="height: 100%;">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Canvas Drag and Drop Test</title>
+</head>
+
+<body style="height: 100%;">
+    <canvas id="canvas">
+        This text is displayed if your browser does not support HTML5 Canvas.
+    </canvas>
+    <script type="text/javascript">
+        const WIDTH = document.body.clientWidth;
+        const HEIGHT = document.body.clientHeight;
+        const canvas = document.getElementById("canvas");
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        const context = canvas.getContext("2d");
+        let id = 0;
+
+        let STATE = {
+            shapes: [],
+            clickedShape: null,
+            distanceBetweenShapes: 10
+        };
+
+        class Point {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            update(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+        }
+
+        class Line {
+            constructor(startPoint, endPoint) {
+                this.start = startPoint;
+                this.end = endPoint;
+            }
+        }
+
+        class Shape {
+            constructor(point) {
+                this.id = id++;
+                this.x = point.x;
+                this.y = point.y;
+                this.deltaX = null;
+                this.deltaY = null;
+                this.crossed = false;
+            }
+
+            get currentPoints() { }
+
+            get lines() {
+                let lines = [];
+                let points = this.currentPoints;
+                for (let i = 0; i < points.length; i++) {
+                    lines.push(new Line(points[i], points[(i + 1) % points.length]))
+                }
+                return lines;
+            }
+
+            contains() { }
+
+            draw() {
+                if (this.crossed) {
+                    context.fill();
+                }
+            }
+        }
+
+        class Rectangle extends Shape {
+            constructor(point, width, height) {
+                super(point);
+                this.width = width;
+                this.height = height;
+            }
+
+            get currentPoints() {
+                return [
+                    new Point(this.x, this.y),
+                    new Point(this.x + this.width, this.y),
+                    new Point(this.x + this.width, this.y + this.height),
+                    new Point(this.x, this.y + this.height)
+                ];
+            }
+
+            contains(x, y) {
+                return isPointAtLine(x, this.x, this.x + this.width)
+                    && isPointAtLine(y, this.y, this.y + this.height)
+            }
+
+            draw() {
+                context.beginPath();
+                context.rect(this.x, this.y, this.width, this.height);
+                context.closePath();
+                context.stroke();
+                super.draw();
+            }
+        }
+
+        function getDrawPoints(x, y, points) {
+            let drawPoints = points.map(function (point) {
+                return new Point(point.x - x, point.y - y);
+            });
+            return drawPoints;
+        }
+
+        class Polygon extends Shape {
+            constructor(points) {
+                super(points[0]);
+                this.points = points;
+                this.drawPoints = getDrawPoints(this.x, this.y, points);
+            }
+
+            get currentPoints() {
+                let x = this.x;
+                let y = this.y;
+                let points = this.drawPoints.map(function (drawPoint) {
+                    return new Point(drawPoint.x + x, drawPoint.y + y);
+                });
+                return points;
+            }
+
+            contains(x, y) {
+                return inPolygon(x, y, this.currentPoints)
+            }
+
+            draw() {
+                let points = this.currentPoints;
+                context.beginPath();
+                context.moveTo(points[0].x, points[0].y);
+                points.forEach(function (point) {
+                    context.lineTo(point.x, point.y)
+                })
+                context.lineTo(points[0].x, points[0].y);
+                context.closePath();
+                context.stroke();
+                super.draw();
+            }
+        }
+
+        function clear() {
+            context.clearRect(0, 0, WIDTH, HEIGHT);
+        }
+
+        function requestDraw() {
+            requestAnimationFrame(draw);
+        }
+
+        function draw() {
+            clear();
+            context.fillStyle = "#FF0000";
+            (new Rectangle(new Point(0, 0), WIDTH, HEIGHT)).draw();
+
+            STATE.shapes.forEach(function (shape) {
+                shape.draw();
+            });
+        }
+
+        function isPointAtLine(point, startLine, endLine) {
+            return startLine <= point && point < endLine;
+        }
+
+        function yBetweenShapePointsY(pointI, pointJ, y) {
+            return isPointAtLine(y, pointI.y, pointJ.y) || isPointAtLine(y, pointJ.y, pointI.y);
+        }
+
+        function beamCrossedShape(pointI, pointJ, x, y) {
+            return x > (pointJ.x - pointI.x) * (y - pointI.y) / (pointJ.y - pointI.y) + pointI.x;
+        }
+
+        function inPolygon(x, y, points) {
+            pointsTotal = points.length;
+            j = pointsTotal - 1;
+            let belongPolygon = false;
+            for (i = 0; i < pointsTotal; i++) {
+                if (yBetweenShapePointsY(points[j], points[i], y) && beamCrossedShape(points[j], points[i], x, y)) {
+                    belongPolygon = !belongPolygon
+                }
+                j = i;
+            }
+            return belongPolygon;
+        }
+
+        const mousePosition = new Point(0, 0);
+
+        function isClicked(e, shape) {
+            return shape.contains(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop);
+        }
+
+        function move(e) {
+            mousePosition.update(e.pageX, e.pageY);
+        }
+
+        let requestRedrawId = null;
+
+        function redraw() {
+            if (STATE.clickedShape) {
+                STATE.clickedShape.x = mousePosition.x - canvas.offsetLeft - STATE.clickedShape.deltaX;
+                STATE.clickedShape.y = mousePosition.y - canvas.offsetTop - STATE.clickedShape.deltaY;
+                requestDraw();
+                requestRedrawId = requestAnimationFrame(redraw);
+            }
+        }
+
+        function down(e) {
+            STATE.shapes.forEach(function (shape) {
+                if (isClicked(e, shape)) {
+                    STATE.clickedShape = shape;
+                    return;
+                }
+            });
+
+            if (STATE.clickedShape) {
+                STATE.clickedShape.deltaX = (e.pageX - canvas.offsetLeft) - STATE.clickedShape.x;
+                STATE.clickedShape.deltaY = (e.pageY - canvas.offsetTop) - STATE.clickedShape.y;
+
+                requestDraw();
+                canvas.onmousemove = move;
+                mousePosition.update(e.pageX, e.pageY);
+                redraw();
+            }
+        }
+
+        function vectorMulti(ax, ay, bx, by) {
+            return ax * by - bx * ay;
+        }
+
+        function realLess(a, b) {
+            return b - a > 0.01;
+        }
+
+        function isLineCrossed(lineA, lineB) {
+            let v1 = vectorMulti(
+                lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.start.x - lineB.start.x, lineA.start.y - lineB.start.y);
+            let v2 = vectorMulti(
+                lineB.end.x - lineB.start.x, lineB.end.y - lineB.start.y, lineA.end.x - lineB.start.x, lineA.end.y - lineB.start.y);
+            let v3 = vectorMulti(
+                lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.start.x - lineA.start.x, lineB.start.y - lineA.start.y);
+            let v4 = vectorMulti(
+                lineA.end.x - lineA.start.x, lineA.end.y - lineA.start.y, lineB.end.x - lineA.start.x, lineB.end.y - lineA.start.y);
+
+            return realLess(v1 * v2, 0) && realLess(v3 * v4, 0)
+        }
+
+        function isCrossed(currentShapeId, linesCurrentShape) {
+            return STATE.shapes.some(function (shape) {
+                if (shape.id != currentShapeId) {
+                    let linesShape = shape.lines;
+                    return linesCurrentShape.some(function (lineCurrentShape) {
+                        return linesShape.some(function (line) {
+                            return isLineCrossed(lineCurrentShape, line);
+                        });
+                    });
+                }
+            });
+        }
+
+        function checkForIntersection() {
+            STATE.shapes.forEach(function (shape) {
+                shape.crossed = isCrossed(shape.id, shape.lines);
+            });
+        }
+
+        function up() {
+            canvas.onmousemove = null;
+
+            if (STATE.clickedShape) {
+                STATE.clickedShape.points = STATE.clickedShape.currentPoints;
+            }
+
+            STATE.clickedShape = null;
+            checkForIntersection();
+            if (requestRedrawId) {
+                cancelAnimationFrame(requestRedrawId);
+            }
+            requestDraw();
+        }
+
+        function minPointsX(shape) {
+            let points = shape.currentPoints;
+            let minX = points[0].x;
+            points.forEach(function (point) {
+                minX = minX < point.x ? minX : point.x;
+            })
+            return minX;
+        }
+
+        function minPointsY(shape) {
+            let points = shape.currentPoints;
+            let minY = points[0].y;
+            points.forEach(function (point) {
+                minY = minY < point.y ? minY : point.y;
+            })
+
+            return minY;
+        }
+
+        function maxPointsY(shape) {
+            let points = shape.currentPoints;
+            let maxY = points[0].y;
+            points.forEach(function (point) {
+                maxY = maxY > point.y ? maxY : point.y;
+            })
+
+            return maxY;
+        }
+
+        function makePositionShapesFreely() {
+            STATE.shapes[0].x = STATE.distanceBetweenShapes;
+            STATE.shapes[0].y = STATE.distanceBetweenShapes;
+            for (i = 1; i < STATE.shapes.length; i++) {
+                STATE.shapes[i].x -= minPointsX(STATE.shapes[i]) - STATE.distanceBetweenShapes;
+                STATE.shapes[i].y += maxPointsY(STATE.shapes[i - 1]) - minPointsY(STATE.shapes[i]) + STATE.distanceBetweenShapes;
+            }
+        }
+
+        function init() {
+            STATE.shapes.push(new Rectangle(new Point(70, 70), 30, 50));
+            STATE.shapes.push(new Rectangle(new Point(10, 10), 40, 50));
+            STATE.shapes.push(new Rectangle(new Point(10, 10), 20, 30));
+            STATE.shapes.push(new Polygon([new Point(10, 10), new Point(40, 30), new Point(50, 20), new Point(70, 80)]));
+            STATE.shapes.push(new Polygon([new Point(10, 10), new Point(10, 40), new Point(70, 70), new Point(80, 20)]));
+            STATE.shapes.push(new Polygon([new Point(70, 30), new Point(80, 5), new Point(15, 10), new Point(20, 40)]));
+            makePositionShapesFreely();
+            requestDraw();
+        }
+
+        init();
+        canvas.onmousedown = down;
+        canvas.onmouseup = up;
+    </script>
+</body>
+
+</html>
