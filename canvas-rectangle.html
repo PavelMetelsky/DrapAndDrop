@@ -30,6 +30,11 @@
                 this.x = x;
                 this.y = y;
             }
+
+            update(x, y) {
+                this.x = x;
+                this.y = y;
+            }
         }
 
         class Line {
@@ -60,6 +65,8 @@
                 return lines;
             }
 
+            contains() { }
+
             draw() {
                 if (this.crossed) {
                     context.fill();
@@ -70,7 +77,6 @@
         class Rectangle extends Shape {
             constructor(point, width, height) {
                 super(point);
-                this.type = 1;
                 this.width = width;
                 this.height = height;
             }
@@ -82,6 +88,11 @@
                     new Point(this.x + this.width, this.y + this.height),
                     new Point(this.x, this.y + this.height)
                 ];
+            }
+
+            contains(x, y) {
+                return isPointAtLine(x, this.x, this.x + this.width)
+                    && isPointAtLine(y, this.y, this.y + this.height)
             }
 
             draw() {
@@ -103,7 +114,6 @@
         class Polygon extends Shape {
             constructor(points) {
                 super(points[0]);
-                this.type = 2;
                 this.points = points;
                 this.drawPoints = getDrawPoints(this.x, this.y, points);
             }
@@ -115,6 +125,10 @@
                     return new Point(drawPoint.x + x, drawPoint.y + y);
                 });
                 return points;
+            }
+
+            contains(x, y) {
+                return inPolygon(x, y, this.currentPoints)
             }
 
             draw() {
@@ -149,12 +163,12 @@
             });
         }
 
-        function dotInsideLine(point, startLine, endLine) {
+        function isPointAtLine(point, startLine, endLine) {
             return startLine <= point && point < endLine;
         }
 
         function yBetweenShapePointsY(pointI, pointJ, y) {
-            return dotInsideLine(y, pointI.y, pointJ.y) || dotInsideLine(y, pointJ.y, pointI.y);
+            return isPointAtLine(y, pointI.y, pointJ.y) || isPointAtLine(y, pointJ.y, pointI.y);
         }
 
         function beamCrossedShape(pointI, pointJ, x, y) {
@@ -174,33 +188,22 @@
             return belongPolygon;
         }
 
-        const MousePosition = {
-            x: 0,
-            y: 0
-        };
+        const mousePosition = new Point(0, 0);
 
         function isClicked(e, shape) {
-            MousePosition.x = e.pageX;
-            MousePosition.y = e.pageY;
-            if (shape.type == 1) {
-                return dotInsideLine(MousePosition.x - canvas.offsetLeft, shape.x, shape.x + shape.width)
-                    && dotInsideLine(MousePosition.y - canvas.offsetTop, shape.y, shape.y + shape.height);
-            } else {
-                return inPolygon(MousePosition.x - canvas.offsetLeft, MousePosition.y - canvas.offsetTop, shape.currentPoints)
-            }
+            return shape.contains(e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop);
         }
 
         function move(e) {
-            MousePosition.x = e.pageX;
-            MousePosition.y = e.pageY;
+            mousePosition.update(e.pageX, e.pageY);
         }
 
         let requestRedrawId = null;
 
         function redraw() {
             if (STATE.clickedShape) {
-                STATE.clickedShape.x = MousePosition.x - canvas.offsetLeft - STATE.clickedShape.deltaX;
-                STATE.clickedShape.y = MousePosition.y - canvas.offsetTop - STATE.clickedShape.deltaY;
+                STATE.clickedShape.x = mousePosition.x - canvas.offsetLeft - STATE.clickedShape.deltaX;
+                STATE.clickedShape.y = mousePosition.y - canvas.offsetTop - STATE.clickedShape.deltaY;
                 requestDraw();
                 requestRedrawId = requestAnimationFrame(redraw);
             }
@@ -220,8 +223,7 @@
 
                 requestDraw();
                 canvas.onmousemove = move;
-                MousePosition.x = e.clientX;
-                MousePosition.y = e.clientY;
+                mousePosition.update(e.pageX, e.pageY);
                 redraw();
             }
         }
@@ -310,7 +312,7 @@
             return maxY;
         }
 
-        function positionShapesFreely() {
+        function makePositionShapesFreely() {
             STATE.shapes[0].x = STATE.distanceBetweenShapes;
             STATE.shapes[0].y = STATE.distanceBetweenShapes;
             for (i = 1; i < STATE.shapes.length; i++) {
@@ -326,11 +328,9 @@
             STATE.shapes.push(new Polygon([new Point(10, 10), new Point(40, 30), new Point(50, 20), new Point(70, 80)]));
             STATE.shapes.push(new Polygon([new Point(10, 10), new Point(10, 40), new Point(70, 70), new Point(80, 20)]));
             STATE.shapes.push(new Polygon([new Point(70, 30), new Point(80, 5), new Point(15, 10), new Point(20, 40)]));
-            positionShapesFreely();
-            console.log(STATE);
+            makePositionShapesFreely();
             requestDraw();
         }
-
 
         init();
         canvas.onmousedown = down;
