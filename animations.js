@@ -1,4 +1,5 @@
 function clear() {
+//Я хочу жить красиво и тусоваться на Зыбицкой
     context.clearRect(0, 0, WIDTH, HEIGHT);
 }
 
